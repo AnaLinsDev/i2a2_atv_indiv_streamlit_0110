@@ -1,0 +1,1 @@
+pip install pandas matplotlib seaborn streamlit langchain langchain-google-genai
