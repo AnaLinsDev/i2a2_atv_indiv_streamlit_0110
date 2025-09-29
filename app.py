@@ -11,21 +11,6 @@ from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# --- Configuração do modelo LLM via LangChain ---
-os.environ["GOOGLE_API_KEY"] = "AIzaSyA13jxrcbGW1XpJrWeIbkGS6XWv6KChdws"  
-
-# Criando o modelo de linguagem conectado ao Google Generative AI via LangChain
-model = ChatGoogleGenerativeAI(
-    model="models/gemini-2.5-flash",  # Modelo escolhido
-    temperature=0                     # Saídas mais determinísticas
-)
-
-# Memória da conversa: guarda o histórico de interações (perguntas e respostas anteriores)
-memory = ConversationBufferMemory(memory_key="history", return_messages=True)
-
-# Criação da cadeia de conversação do LangChain
-agent_chain = ConversationChain(llm=model, memory=memory, verbose=True)
-
 
 # --- Funções auxiliares ---
 def log_message(text: str):
@@ -74,23 +59,26 @@ def executar_codigo_da_resposta(resposta: str):
             local_vars = {}
             exec(codigo, globals(), local_vars)
 
-            # Verifica se gráficos foram gerados
-            figs = [plt.gcf()]
-            if figs:
-                for fig in figs:
-                    st.pyplot(fig)
-                plt.clf()
+            # --- Captura TODAS as figuras abertas ---
+            figs = [plt.figure(n) for n in plt.get_fignums()]
+            for fig in figs:
+                st.pyplot(fig)
+
+            # Limpa TODAS as figuras depois de exibir
+            plt.close('all')
 
         except Exception as e:
             log_message(f"⚠️ Erro ao executar o código: {e}")
 
+    # Texto que não está em blocos de código
     texto_fora = re.sub(r"```python.*?```", "", resposta, flags=re.DOTALL).strip()
     if texto_fora:
         log_message("📝 Resposta do agente:")
         log_message(texto_fora)
 
 
-def enviar_pergunta(question: str, csv_text: str, csv_path: str):
+
+def enviar_pergunta(question: str, csv_text: str, csv_path: str, agent_chain):
     """Envia a pergunta do usuário ao LLM"""
     if not question.strip():
         log_message("⚠️ Digite uma pergunta válida.")
@@ -111,26 +99,45 @@ def enviar_pergunta(question: str, csv_text: str, csv_path: str):
 # --- Interface Streamlit ---
 st.title("🤖 Agente I2A2 - Individual")
 
-# Upload de CSV
-uploaded_file = st.file_uploader("📂 Faça upload do arquivo CSV", type=["csv"])
+# Campo para o usuário inserir a API Key
+api_key = st.text_input("🔑 Insira sua Google API Key:", type="password")
 
-if uploaded_file is not None:
-    with st.spinner("📂 Processando o arquivo CSV..."):
-        df = pd.read_csv(uploaded_file)
+if api_key:
+    os.environ["GOOGLE_API_KEY"] = api_key
 
-        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
-        tmp_file.write(uploaded_file.getbuffer())
-        tmp_file.close()
+    # Criando o modelo de linguagem conectado ao Google Generative AI via LangChain
+    model = ChatGoogleGenerativeAI(
+        model="models/gemini-2.5-flash",
+        temperature=0
+    )
 
-        csv_path = tmp_file.name  # ✅ real path accessible on the server
-        csv_text = "\n".join(df.to_csv(index=False).splitlines()[:5])
+    # Memória da conversa
+    memory = ConversationBufferMemory(memory_key="history", return_messages=True)
 
-    st.success(f"✅ Arquivo '{uploaded_file.name}' carregado com sucesso!")
-    
-    pergunta = st.text_input("❓ Digite sua pergunta:")
+    # Criação da cadeia de conversação
+    agent_chain = ConversationChain(llm=model, memory=memory, verbose=True)
 
-    if st.button("Enviar pergunta"):
-        enviar_pergunta(pergunta, csv_text, csv_path)
+    # Upload de CSV
+    uploaded_file = st.file_uploader("📂 Faça upload do arquivo CSV", type=["csv"])
+
+    if uploaded_file is not None:
+        with st.spinner("📂 Processando o arquivo CSV..."):
+            df = pd.read_csv(uploaded_file)
+
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
+            tmp_file.write(uploaded_file.getbuffer())
+            tmp_file.close()
+
+            csv_path = tmp_file.name  # ✅ real path accessible on the server
+            csv_text = "\n".join(df.to_csv(index=False).splitlines()[:5])
+
+        st.success(f"✅ Arquivo '{uploaded_file.name}' carregado com sucesso!")
+        
+        pergunta = st.text_input("❓ Digite sua pergunta:")
+
+        if st.button("Enviar pergunta"):
+            enviar_pergunta(pergunta, csv_text, csv_path, agent_chain)
+    else:
+        st.info("⬆️ Por favor, faça upload de um arquivo CSV para continuar.")
 else:
-    st.info("⬆️ Por favor, faça upload de um arquivo CSV para continuar.")
-
+    st.warning("⚠️ Insira sua API Key para continuar.")

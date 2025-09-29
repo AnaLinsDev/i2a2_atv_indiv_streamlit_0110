@@ -1,0 +1,22 @@
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# Dados temporários
+*.csv
+*.tmp
+*.sqlite3
+
+# Configs do sistema
+.DS_Store
+Thumbs.db
