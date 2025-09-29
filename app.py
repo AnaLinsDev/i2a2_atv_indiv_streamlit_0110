@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
+import tempfile
 
 # --- LangChain Imports ---
 from langchain.chains import ConversationChain
@@ -114,10 +115,14 @@ st.title("🤖 Agente I2A2 - Individual")
 uploaded_file = st.file_uploader("📂 Faça upload do arquivo CSV", type=["csv"])
 
 if uploaded_file is not None:
-    # Spinner durante a leitura/conversão do CSV
     with st.spinner("📂 Processando o arquivo CSV..."):
         df = pd.read_csv(uploaded_file)
-        csv_path = uploaded_file.name
+
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
+        tmp_file.write(uploaded_file.getbuffer())
+        tmp_file.close()
+
+        csv_path = tmp_file.name  # ✅ real path accessible on the server
         csv_text = "\n".join(df.to_csv(index=False).splitlines()[:5])
 
     st.success(f"✅ Arquivo '{uploaded_file.name}' carregado com sucesso!")
@@ -128,3 +133,4 @@ if uploaded_file is not None:
         enviar_pergunta(pergunta, csv_text, csv_path)
 else:
     st.info("⬆️ Por favor, faça upload de um arquivo CSV para continuar.")
+
